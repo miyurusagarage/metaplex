@@ -1,4 +1,4 @@
-import { LAMPORTS_PER_SOL, AccountInfo } from '@solana/web3.js';
+import { LAMPORTS_PER_SOL, AccountInfo, PublicKey } from '@solana/web3.js';
 import fs from 'fs';
 import weighted from 'weighted';
 import path from 'path';
@@ -7,6 +7,7 @@ import { Token, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { StorageType } from './storage-type';
 import { getAtaForMint } from './accounts';
 import { CLUSTERS, DEFAULT_CLUSTER } from './constants';
+import { Uses, UseMethod } from '@metaplex-foundation/mpl-token-metadata';
 
 const { readFile } = fs.promises;
 
@@ -16,6 +17,7 @@ export async function getCandyMachineV2Config(
   configPath: any,
 ): Promise<{
   storage: StorageType;
+  nftStorageKey: string;
   ipfsInfuraProjectId: string;
   number: number;
   ipfsInfuraSecret: string;
@@ -56,6 +58,7 @@ export async function getCandyMachineV2Config(
 
   const {
     storage,
+    nftStorageKey,
     ipfsInfuraProjectId,
     number,
     ipfsInfuraSecret,
@@ -131,12 +134,18 @@ export async function getCandyMachineV2Config(
 
     wallet = new web3.PublicKey(splTokenAccountKey);
     parsedPrice = price * 10 ** mintInfo.decimals;
-    if (whitelistMintSettings?.discountPrice) {
+    if (
+      whitelistMintSettings?.discountPrice ||
+      whitelistMintSettings?.discountPrice === 0
+    ) {
       whitelistMintSettings.discountPrice *= 10 ** mintInfo.decimals;
     }
   } else {
     parsedPrice = price * 10 ** 9;
-    if (whitelistMintSettings?.discountPrice) {
+    if (
+      whitelistMintSettings?.discountPrice ||
+      whitelistMintSettings?.discountPrice === 0
+    ) {
       whitelistMintSettings.discountPrice *= 10 ** 9;
     }
     wallet = solTreasuryAccount
@@ -146,7 +155,10 @@ export async function getCandyMachineV2Config(
 
   if (whitelistMintSettings) {
     whitelistMintSettings.mint = new web3.PublicKey(whitelistMintSettings.mint);
-    if (whitelistMintSettings?.discountPrice) {
+    if (
+      whitelistMintSettings?.discountPrice ||
+      whitelistMintSettings?.discountPrice === 0
+    ) {
       whitelistMintSettings.discountPrice = new BN(
         whitelistMintSettings.discountPrice,
       );
@@ -175,6 +187,7 @@ export async function getCandyMachineV2Config(
 
   return {
     storage,
+    nftStorageKey,
     ipfsInfuraProjectId,
     number,
     ipfsInfuraSecret,
@@ -507,4 +520,29 @@ export function getCluster(name: string): string {
     }
   }
   return DEFAULT_CLUSTER.url;
+}
+
+export function parseUses(useMethod: string, total: number): Uses | null {
+  if (!!useMethod && !!total) {
+    const realUseMethod = (UseMethod as any)[useMethod];
+    if (!realUseMethod) {
+      throw new Error(`Invalid use method: ${useMethod}`);
+    }
+    return new Uses({ useMethod: realUseMethod, total, remaining: total });
+  }
+  return null;
+}
+
+export function parseCollectionMintPubkey(collectionMint: null | PublicKey) {
+  let collectionMintPubkey: null | PublicKey = null;
+  if (collectionMint) {
+    try {
+      collectionMintPubkey = new PublicKey(collectionMint);
+    } catch (error) {
+      throw new Error(
+        'Invalid Pubkey option. Please enter it as a base58 mint id',
+      );
+    }
+  }
+  return collectionMintPubkey;
 }
